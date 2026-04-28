@@ -4,13 +4,22 @@ from uuid import UUID
 
 class SearchQuery(BaseModel):
     query: str
-    limit: Optional[int] = 5 # Quantos trechos retornar
+    limit: Optional[int] = 5
 
 class SearchResult(BaseModel):
     content: str
     document_id: UUID
     index: int
-    score: float # Quão parecida é a resposta (0 a 1)
+    score: float
 
 class SearchResponse(BaseModel):
     results: List[SearchResult]
+
+class ChatQuery(BaseModel):
+    message: str
+    limit: Optional[int] = 5
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: List[SearchResult]
+    model_used: str

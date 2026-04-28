@@ -36,6 +36,22 @@ export interface RagSearchResponse {
   results: RagResult[];
 }
 
+export interface ChatResponse {
+  answer: string;
+  sources: RagResult[];
+  model_used: string;
+}
+
+/** A single message in the local chat history (client-side only) */
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: RagResult[];
+  model_used?: string;
+  timestamp: string;
+}
+
 export interface AudioBook {
   id: string;
   file_path: string;
@@ -57,4 +73,12 @@ export interface Toast {
   id: string;
   type: ToastType;
   message: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
 }

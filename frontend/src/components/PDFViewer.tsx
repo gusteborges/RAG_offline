@@ -7,8 +7,13 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import './PDFViewer.css';
 
-// Use a fixed version from cdnjs to match the installed package version
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.7.284/pdf.worker.min.mjs`;
+// Use a reliable worker source
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.js`;
+
+// HACK: Desabilitar a checagem de versão para evitar o erro "does not match"
+if (typeof window !== 'undefined' && 'pdfjsLib' in window) {
+  (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjs.GlobalWorkerOptions.workerSrc;
+}
 
 interface PDFViewerProps {
   /** Either a URL string or a File object */

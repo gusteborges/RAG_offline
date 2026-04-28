@@ -68,3 +68,17 @@ async def serve_document_file(
     
     media_type = "application/pdf" if doc.file_path.endswith(".pdf") else "text/plain"
     return FileResponse(path=doc.file_path, media_type=media_type, filename=doc.title)
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove o documento e seus chunks/audiobooks associados."""
+    doc_repo = DocumentRepository(db)
+    doc_service = DocumentService(doc_repo, db_session=db)
+
+    deleted = await doc_service.delete_document(document_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Documento não encontrado")

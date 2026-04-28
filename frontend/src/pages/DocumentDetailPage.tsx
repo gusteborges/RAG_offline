@@ -19,7 +19,7 @@ export default function DocumentDetailPage() {
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [audioId, setAudioId] = useState<string | null>(null);
+  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'viewer' | 'text'>('viewer');
@@ -62,7 +62,9 @@ export default function DocumentDetailPage() {
     setGeneratingAudio(true);
     try {
       const res = await audioApi.generate(id);
-      setAudioId(res.audio_id);
+      // Fetch as authenticated blob to avoid 401 on direct src
+      const blobUrl = await audioApi.fetchBlobUrl(res.audio_id);
+      setAudioBlobUrl(blobUrl);
       setAudioReady(true);
       addToast('Audiobook gerado com sucesso! 🎧', 'success');
     } catch (err) {
@@ -72,6 +74,13 @@ export default function DocumentDetailPage() {
       setGeneratingAudio(false);
     }
   };
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+    };
+  }, [audioBlobUrl]);
 
   if (loading) {
     return (
@@ -172,7 +181,7 @@ export default function DocumentDetailPage() {
               ) : (
                 <div style={{ marginTop: 8 }}>
                   <AudioPlayer
-                    src={audioApi.downloadUrl(audioId!)}
+                    src={audioBlobUrl!}
                     title={`Audiobook — ${doc.title}`}
                   />
                 </div>

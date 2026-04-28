@@ -8,6 +8,7 @@ import type {
   Document,
   DocumentDetail,
   RagSearchResponse,
+  ChatResponse,
   AudioGenerateResponse,
 } from '../types';
 
@@ -29,7 +30,7 @@ const afterResponse: AfterResponseHook = ({ response }) => {
 
 const base = ky.create({
   prefix: '/api',
-  timeout: 60_000,
+  timeout: 300_000,
   hooks: {
     beforeRequest: [beforeRequest],
     afterResponse: [afterResponse],
@@ -39,7 +40,7 @@ const base = ky.create({
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
   register: (username: string, email: string, password: string) =>
-    base.post('auth/register', { json: { username, email, password } }).json<User>(),
+    base.post('auth/register', { json: { username, email, password } }).json<Document>(),
 
   login: async (email: string, password: string): Promise<AuthTokens> => {
     const form = new URLSearchParams();
@@ -73,6 +74,9 @@ export const documentsApi = {
 export const ragApi = {
   search: (query: string, limit = 5) =>
     base.post('rag/search', { json: { query, limit } }).json<RagSearchResponse>(),
+
+  chat: (message: string, limit = 5) =>
+    base.post('rag/chat', { json: { message, limit } }).json<ChatResponse>(),
 };
 
 // ── Audio ────────────────────────────────────────────────────
@@ -80,6 +84,18 @@ export const audioApi = {
   generate: (documentId: string) =>
     base.post(`audio/generate/${documentId}`).json<AudioGenerateResponse>(),
 
+  /** Fetch audio as blob and return an ObjectURL (includes auth header). */
+  fetchBlobUrl: async (audioId: string): Promise<string> => {
+    const token = sessionStorage.getItem('access_token');
+    const res = await fetch(`/api/audio/download/${audioId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Erro ao baixar áudio: ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
+  /** Direct download href (for <a download> — requires same fetch approach) */
   downloadUrl: (audioId: string) => `/api/audio/download/${audioId}`,
 };
 

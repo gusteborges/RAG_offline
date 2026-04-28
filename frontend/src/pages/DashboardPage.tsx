@@ -1,247 +1,361 @@
 // ============================================================
-// DASHBOARD PAGE — Document list + drag-and-drop upload + RAG
+// DASHBOARD — NotebookLM-inspired layout with conversation sidebar
 // ============================================================
-import { useEffect, useState, useRef } from 'react';
-import type { DragEvent, ChangeEvent } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import type { DragEvent, ChangeEvent, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
 import { documentsApi, ragApi, extractErrorMessage } from '../api';
-import { useDocumentStore, useToastStore } from '../store';
-import type { Document, RagResult } from '../types';
+import { useDocumentStore, useToastStore, useConversationStore, useAuthStore } from '../store';
+import AudiobookModal from '../components/AudiobookModal';
+import type { ChatMessage } from '../types';
 import './Dashboard.css';
+
+function uid() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { logout } = useAuthStore();
   const { documents, setDocuments, addDocument, removeDocument } = useDocumentStore();
   const { addToast } = useToastStore();
+  const {
+    conversations, activeId,
+    setActiveId, createConversation, deleteConversation, addMessage,
+  } = useConversationStore();
 
-  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [ragQuery, setRagQuery] = useState('');
-  const [ragResults, setRagResults] = useState<RagResult[]>([]);
-  const [ragLoading, setRagLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [input, setInput] = useState('');
+  const [showAudiobook, setShowAudiobook] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Load documents on mount
+  const activeConv = conversations.find((c) => c.id === activeId);
+
+  // Init: load docs + ensure at least one conversation
   useEffect(() => {
     (async () => {
       try {
         const docs = await documentsApi.list();
         setDocuments(docs);
-      } catch (err) {
-        const msg = await extractErrorMessage(err);
-        addToast(msg, 'error');
-      } finally {
-        setLoadingDocs(false);
-      }
+      } catch { /* silent */ }
     })();
+    if (conversations.length === 0) createConversation();
+    else if (!activeId) setActiveId(conversations[0].id);
   }, []);
 
-  // Upload handler
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeConv?.messages.length]);
+
+  // ── Upload ──────────────────────────────────────────────────
   const handleUpload = async (file: File) => {
     if (!file.name.match(/\.(pdf|txt)$/i)) {
-      addToast('Apenas arquivos PDF e TXT são suportados', 'error');
-      return;
+      addToast('Apenas PDF e TXT são suportados', 'error'); return;
     }
     setUploading(true);
     try {
       const doc = await documentsApi.upload(file);
       addDocument(doc);
-      addToast(`"${doc.title}" carregado com sucesso!`, 'success');
-    } catch (err) {
-      const msg = await extractErrorMessage(err);
-      addToast(msg, 'error');
-    } finally {
-      setUploading(false);
-    }
+      addToast(`"${doc.title}" indexado!`, 'success');
+      if (activeId) {
+        addMessage(activeId, {
+          id: uid(), role: 'assistant',
+          content: `📄 **"${doc.title}"** foi indexado. Agora pode perguntar sobre ele!`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) { addToast(await extractErrorMessage(err), 'error'); }
+    finally { setUploading(false); }
   };
 
   const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) handleUpload(e.target.files[0]);
+    e.target.value = '';
   };
 
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); setDragging(false);
     if (e.dataTransfer.files?.[0]) handleUpload(e.dataTransfer.files[0]);
   };
 
-  // Delete handler
-  const handleDelete = async (doc: Document) => {
-    if (!confirm(`Remover "${doc.title}"?`)) return;
+  // ── Delete document ─────────────────────────────────────────
+  const handleDeleteDoc = async (id: string, title: string) => {
+    if (!confirm(`Remover "${title}"?`)) return;
     try {
-      await documentsApi.delete(doc.id);
-      removeDocument(doc.id);
-      addToast('Documento removido', 'info');
-    } catch {
-      addToast('Erro ao remover documento', 'error');
-    }
+      await documentsApi.delete(id);
+      removeDocument(id);
+      addToast('Removido', 'info');
+    } catch (err) { addToast(await extractErrorMessage(err), 'error'); }
   };
 
-  // RAG search
-  const handleRagSearch = async () => {
-    if (!ragQuery.trim()) return;
-    setRagLoading(true);
-    setRagResults([]);
+  // ── Chat send ───────────────────────────────────────────────
+  const sendMessage = useCallback(async () => {
+    const text = input.trim();
+    if (!text || chatLoading || !activeId) return;
+
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, timestamp: new Date().toISOString() };
+    addMessage(activeId, userMsg);
+    setInput('');
+    setChatLoading(true);
+
     try {
-      const res = await ragApi.search(ragQuery);
-      setRagResults(res.results);
-      if (res.results.length === 0) addToast('Nenhum resultado encontrado', 'info');
+      const res = await ragApi.chat(text);
+      addMessage(activeId, {
+        id: uid(), role: 'assistant',
+        content: res.answer, sources: res.sources, model_used: res.model_used,
+        timestamp: new Date().toISOString(),
+      });
     } catch (err) {
-      const msg = await extractErrorMessage(err);
-      addToast(msg, 'error');
-    } finally {
-      setRagLoading(false);
-    }
+      addMessage(activeId, {
+        id: uid(), role: 'assistant',
+        content: `❌ ${await extractErrorMessage(err)}`,
+        timestamp: new Date().toISOString(),
+      });
+    } finally { setChatLoading(false); }
+  }, [input, chatLoading, activeId]);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  const formatDate = (s: string) =>
-    new Date(s).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const handleNewChat = () => { createConversation(); setSidebarOpen(false); };
+
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  const fmtTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 
   return (
-    <div className="dashboard-layout">
-      <Navbar />
-      <main className="dashboard-main container">
+    <div className={`app-shell ${sidebarOpen ? 'sidebar-visible' : ''}`}>
 
-        {/* Hero */}
-        <section className="dash-hero fade-up">
-          <div>
-            <h1>Seus <span className="text-gradient">Documentos</span></h1>
-            <p className="dash-hero-sub">Faça upload de PDFs, pesquise com IA e gere audiobooks.</p>
+      {/* ── SIDEBAR ─────────────────────────────────────────── */}
+      <aside className="nb-sidebar">
+        <div className="nb-sidebar-top">
+          {/* Logo */}
+          <div className="nb-logo">
+            <span className="nb-logo-icon">⬡</span>
+            <span className="nb-logo-text">SmartDocs</span>
           </div>
-          <div className="dash-stats">
-            <div className="stat-chip">
-              <span className="stat-num">{documents.length}</span>
-              <span className="stat-label">Documentos</span>
-            </div>
-          </div>
-        </section>
 
-        {/* Upload zone */}
-        <section
-          className={`upload-zone fade-up fade-up-d1 ${dragging ? 'dragging' : ''} ${uploading ? 'uploading' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => !uploading && fileInputRef.current?.click()}
-          role="button"
-          tabIndex={0}
-          id="upload-zone"
-          aria-label="Área de upload de documentos"
-          onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            id="file-input"
-            type="file"
-            accept=".pdf,.txt"
-            style={{ display: 'none' }}
-            onChange={onFileChange}
-          />
-          {uploading ? (
-            <>
-              <div className="spinner spinner-lg" />
-              <p className="upload-text">Processando e indexando documento…</p>
-            </>
-          ) : (
-            <>
-              <div className="upload-icon">⬆</div>
-              <p className="upload-text">
-                {dragging ? 'Solte o arquivo aqui!' : 'Arraste um PDF/TXT ou clique para selecionar'}
-              </p>
-              <p className="upload-hint">PDF e TXT até qualquer tamanho</p>
-            </>
-          )}
-        </section>
+          {/* New Chat */}
+          <button id="btn-new-chat" className="btn-new-chat" onClick={handleNewChat}>
+            <span>＋</span> Nova Conversa
+          </button>
 
-        {/* RAG Search */}
-        <section className="rag-section fade-up fade-up-d2">
-          <h2 className="section-title">🔍 Busca Semântica</h2>
-          <div className="rag-search-row">
-            <input
-              id="rag-query"
-              className="input"
-              type="text"
-              placeholder="Faça uma pergunta sobre seus documentos…"
-              value={ragQuery}
-              onChange={(e) => setRagQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleRagSearch()}
-            />
+          {/* Conversation list */}
+          <nav className="nb-conv-list" aria-label="Conversas">
+            <p className="nb-section-label">Conversas</p>
+            {conversations.map((c) => (
+              <div
+                key={c.id}
+                className={`nb-conv-item ${c.id === activeId ? 'active' : ''}`}
+              >
+                <button
+                  className="nb-conv-btn"
+                  onClick={() => { setActiveId(c.id); setSidebarOpen(false); }}
+                  id={`conv-${c.id}`}
+                  title={c.title}
+                >
+                  <span className="nb-conv-icon">💬</span>
+                  <div className="nb-conv-info">
+                    <span className="nb-conv-title">{c.title}</span>
+                    <span className="nb-conv-date">{fmtDate(c.updatedAt)}</span>
+                  </div>
+                </button>
+                <button
+                  className="nb-conv-del"
+                  onClick={() => deleteConversation(c.id)}
+                  aria-label="Apagar conversa"
+                  title="Apagar"
+                >✕</button>
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        {/* Sources */}
+        <div className="nb-sources">
+          <div className="nb-section-label-row">
+            <span className="nb-section-label">Fontes</span>
             <button
-              id="btn-rag-search"
-              className="btn btn-primary"
-              onClick={handleRagSearch}
-              disabled={ragLoading || !ragQuery.trim()}
+              className="nb-upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              title="Adicionar documento"
+              id="btn-sidebar-upload"
             >
-              {ragLoading ? <div className="spinner" /> : '→'}&nbsp;Buscar
+              {uploading ? <div className="spinner" /> : '＋'}
             </button>
+            <input
+              ref={fileInputRef} type="file" accept=".pdf,.txt"
+              style={{ display: 'none' }} onChange={onFileChange}
+            />
           </div>
 
-          {ragResults.length > 0 && (
-            <div className="rag-results">
-              {ragResults.map((r, i) => (
-                <div key={i} className="rag-result-card card fade-up">
-                  <div className="rag-result-header">
-                    <span className="badge badge-primary">Score: {(r.score * 100).toFixed(0)}%</span>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => navigate(`/documents/${r.document_id}`)}
-                    >
-                      Ver documento →
-                    </button>
-                  </div>
-                  <p className="rag-result-text">{r.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+          <div
+            className={`nb-drop-zone ${dragging ? 'dragging' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+          >
+            {dragging ? 'Solte aqui!' : 'Arraste PDFs aqui'}
+          </div>
 
-        {/* Documents list */}
-        <section className="docs-section fade-up fade-up-d3">
-          <h2 className="section-title">📄 Documentos</h2>
-          {loadingDocs ? (
-            <div className="docs-loading">
-              <div className="spinner spinner-lg" />
-              <p>Carregando documentos…</p>
+          <ul className="nb-doc-list">
+            {documents.length === 0 && <li className="nb-doc-empty">Nenhum documento ainda</li>}
+            {documents.map((doc) => (
+              <li key={doc.id} className="nb-doc-item">
+                <button
+                  className="nb-doc-name"
+                  onClick={() => navigate(`/documents/${doc.id}`)}
+                  title={doc.title}
+                >
+                  <span>📄</span>
+                  <span className="nb-doc-title">{doc.title}</span>
+                </button>
+                <button
+                  className="nb-doc-del"
+                  onClick={() => handleDeleteDoc(doc.id, doc.title)}
+                  aria-label="Remover"
+                >✕</button>
+              </li>
+            ))}
+          </ul>
+
+          {/* Logout */}
+          <button className="nb-logout-btn" onClick={handleLogout} id="btn-logout">
+            ↩ Sair
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="nb-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* ── CHAT MAIN ────────────────────────────────────────── */}
+      <div className="chat-shell">
+        {/* Chat top bar */}
+        <header className="chat-topbar">
+          <button
+            className="chat-hamburger"
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label="Abrir menu"
+          >☰</button>
+          <span className="chat-topbar-title">
+            {activeConv?.title ?? 'SmartDocs RAG'}
+          </span>
+          <span className="chat-topbar-badge">RAG ✦ LLM local</span>
+        </header>
+
+        {/* Messages */}
+        <div className="chat-messages" id="chat-messages">
+          {activeConv?.messages.map((msg) => (
+            <div key={msg.id} className={`chat-msg chat-msg-${msg.role}`}>
+              <div className="chat-bubble">
+                <p className="chat-text">
+                  {msg.content.split(/\*\*(.*?)\*\*/g).map((part, i) =>
+                    i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+                  )}
+                </p>
+                {msg.sources && msg.sources.length > 0 && (
+                  <details className="chat-sources">
+                    <summary className="sources-summary">
+                      📎 {msg.sources.length} fonte{msg.sources.length > 1 ? 's' : ''}
+                    </summary>
+                    <div className="sources-list">
+                      {msg.sources.map((s, i) => (
+                        <div key={i} className="source-item">
+                          <div className="source-header">
+                            <span className="badge badge-primary">{(s.score * 100).toFixed(0)}%</span>
+                            <button className="source-link" onClick={() => navigate(`/documents/${s.document_id}`)}>
+                              Ver PDF →
+                            </button>
+                          </div>
+                          <p className="source-text">{s.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                <div className="chat-meta">
+                  <span className="chat-time">{fmtTime(msg.timestamp)}</span>
+                  {msg.model_used && msg.model_used !== 'none' && msg.model_used !== 'fallback' && (
+                    <span className="chat-model">{msg.model_used}</span>
+                  )}
+                </div>
+              </div>
             </div>
-          ) : documents.length === 0 ? (
-            <div className="docs-empty">
-              <p className="docs-empty-icon">📭</p>
-              <p>Nenhum documento ainda. Faça upload acima!</p>
-            </div>
-          ) : (
-            <div className="docs-grid">
-              {documents.map((doc) => (
-                <article key={doc.id} className="doc-card card">
-                  <div className="doc-card-icon">📄</div>
-                  <div className="doc-card-info">
-                    <h3 className="doc-card-title truncate">{doc.title}</h3>
-                    <p className="doc-card-date">{formatDate(doc.created_at)}</p>
-                  </div>
-                  <div className="doc-card-actions">
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => navigate(`/documents/${doc.id}`)}
-                      id={`btn-view-${doc.id}`}
-                    >
-                      Abrir
-                    </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => handleDelete(doc)}
-                      id={`btn-del-${doc.id}`}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </article>
-              ))}
+          ))}
+
+          {chatLoading && (
+            <div className="chat-msg chat-msg-assistant">
+              <div className="chat-bubble chat-typing">
+                <span /><span /><span />
+              </div>
             </div>
           )}
-        </section>
-      </main>
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Input bar */}
+        <div className="chat-inputbar">
+          <input
+            id="chat-input"
+            className="chat-input"
+            type="text"
+            placeholder={activeConv ? 'Pergunte sobre seus documentos…' : 'Selecione uma conversa'}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={chatLoading || !activeId}
+            autoComplete="off"
+          />
+
+          {/* Audiobook button */}
+          <button
+            id="btn-audiobook"
+            className="inputbar-action"
+            onClick={() => setShowAudiobook(true)}
+            title="Gerar Audiobook"
+            aria-label="Gerar Audiobook"
+          >
+            🎧
+          </button>
+
+          {/* Upload button */}
+          <button
+            id="btn-inputbar-upload"
+            className="inputbar-action"
+            onClick={() => fileInputRef.current?.click()}
+            title="Anexar documento"
+            aria-label="Anexar documento"
+            disabled={uploading}
+          >
+            {uploading ? <div className="spinner" /> : '📎'}
+          </button>
+
+          {/* Send */}
+          <button
+            id="btn-send"
+            className="btn btn-primary chat-send-btn"
+            onClick={sendMessage}
+            disabled={chatLoading || !input.trim() || !activeId}
+            aria-label="Enviar"
+          >
+            {chatLoading ? <div className="spinner" /> : '↑'}
+          </button>
+        </div>
+      </div>
+
+      {/* Audiobook modal */}
+      {showAudiobook && <AudiobookModal onClose={() => setShowAudiobook(false)} />}
     </div>
   );
 }
