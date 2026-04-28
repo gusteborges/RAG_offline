@@ -1,37 +1,26 @@
-ARG PYTHON_VERSION=3.11.3
-FROM python:${PYTHON_VERSION}-slim AS base
-
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instala dependências de sistema necessárias para algumas libs de IA e o script de entrada
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Instala dependências do sistema para processamento de áudio/PDF
+RUN apt-get update && apt-get install -y \
     build-essential \
+    ffmpeg \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Criar usuário e pastas antes de mudar para usuário não-privilegiado
-RUN adduser --disabled-password --gecos "" appuser && \
-    mkdir -p /app/uploads && \
-    chown -R appuser:appuser /app
-
-# Instalar dependências Python
+# Copia e instala dependências Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar o código
-COPY --chown=appuser:appuser . .
+# Copia o resto do código
+COPY . .
 
-# Corrigir finais de linha do Windows e dar permissão de execução
-RUN sed -i 's/\r$//' /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh
+# Garante que a pasta de uploads exista
+RUN mkdir -p uploads
 
-# Mudar para o usuário seguro
-USER appuser
-
+# Expõe a porta do FastAPI
 EXPOSE 8080
 
-# Usar o script para iniciar TUDO de uma vez
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Comando para rodar a aplicação
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

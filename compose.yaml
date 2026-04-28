@@ -1,11 +1,35 @@
 services:
+  # --- BANCO DE DADOS ---
+  postgres_db:
+    image: pgvector/pgvector:pg16
+    container_name: smartdocs_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-smartdocs}
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- BACKEND API ---
   server:
     build:
       context: .
+      dockerfile: Dockerfile
+    container_name: smartdocs_api
+    restart: always
     ports: 
       - 8080:8080  
     volumes:
       - .:/app
+      - uploads_data:/app/uploads
     depends_on:
       postgres_db:
         condition: service_healthy
@@ -13,34 +37,25 @@ services:
       - "host.docker.internal:host-gateway"
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres_db:5432/${POSTGRES_DB:-smartdocs}
 
+  # --- FRONTEND ---
   frontend:
     build:
       context: ./frontend
+    container_name: smartdocs_ui
+    restart: always
     ports:
-      - 5173:5173
+      - 80:5173
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - server
-
-  postgres_db:
-    image: pgvector/pgvector:pg16
-    restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - 5432:5432
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - VITE_API_URL=http://server:8080
 
 volumes:
   postgres_data:
+  uploads_data:
