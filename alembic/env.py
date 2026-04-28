@@ -9,6 +9,8 @@ from alembic import context
 from app.core.config import settings
 from app.models.user import User
 from app.models.document import Document
+from app.models.chunk import DocumentChunk
+from app.models.audio_book import AudioBook
 from app.models.base import Base
 
 # Objeto de configuração do Alembic

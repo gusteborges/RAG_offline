@@ -1,11 +1,18 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import settings
 
+from sqlalchemy import text
+
 # Criando o motor Async para se conectar ao banco de dados PostgreSQL
 engine = create_async_engine(
     settings.DATABASE_URL, 
     echo=settings.DEBUG
 )
+
+async def init_db():
+    """Garante que as extensões necessárias estejam ativas."""
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 # Criando uma fábrica de sessões assíncronas
 AsyncSessionLocal = async_sessionmaker(

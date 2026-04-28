@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     UPLOAD_DIR: str = "uploads"
+    ALLOWED_ORIGINS: str = "http://localhost:5173"
 
     @property
     def DATABASE_URL(self) -> str:

@@ -14,6 +14,13 @@ class DocumentRepository:
         await self.db.refresh(document)
         return document
 
+    async def add(self, document: Document) -> Document:
+        """Adds a document to the session without committing."""
+        self.db.add(document)
+        await self.db.flush()
+        await self.db.refresh(document)
+        return document
+
     async def get_by_id(self, doc_id: UUID) -> Optional[Document]:
         result = await self.db.execute(select(Document).where(Document.id == doc_id))
         return result.scalars().first()

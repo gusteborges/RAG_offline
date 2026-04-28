@@ -1,0 +1,108 @@
+.audio-player {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.audio-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+.audio-icon {
+  font-size: 1.1rem;
+  background: var(--accent-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Timeline */
+.audio-timeline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.audio-time {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+}
+.audio-progress-wrap {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-overlay);
+  border-radius: var(--r-pill);
+  position: relative;
+  cursor: pointer;
+}
+.audio-progress-fill {
+  height: 100%;
+  background: var(--accent-grad);
+  border-radius: var(--r-pill);
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+.audio-seek-input {
+  position: absolute;
+  inset: -6px 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  height: 18px;
+}
+
+/* Controls */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.audio-play-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--accent-grad);
+  color: #fff;
+  font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px var(--accent-glow);
+  transition: transform var(--t-fast), box-shadow var(--t-fast);
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+}
+.audio-play-btn:hover { transform: scale(1.08); box-shadow: var(--shadow-glow); }
+.audio-play-btn:active { transform: scale(0.96); }
+
+.audio-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.audio-mute-btn {
+  background: none; border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color var(--t-fast);
+  line-height: 1;
+}
+.audio-mute-btn:hover { color: var(--text-primary); }
+
+.audio-volume-input {
+  flex: 1;
+  max-width: 100px;
+  accent-color: var(--accent-1);
+  height: 4px;
+  cursor: pointer;
+}
