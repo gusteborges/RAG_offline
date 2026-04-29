@@ -75,7 +75,17 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   conversations: [],
   activeId: null,
 
-  setActiveId: (id) => set({ activeId: id }),
+  setActiveId: (id) => {
+    set({ activeId: id });
+    if (id) {
+      // Quando trocar de conversa, buscar dados atualizados dela (incluindo mensagens)
+      conversationsApi.get(id).then((conv) => {
+        set((s) => ({
+          conversations: s.conversations.map((c) => (c.id === id ? conv : c)),
+        }));
+      }).catch(err => console.error("Erro ao carregar conversa:", err));
+    }
+  },
 
   loadConversations: async () => {
     try {
