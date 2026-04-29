@@ -87,6 +87,7 @@ async def chat(
 
     # 3. Chamar Ollama
     try:
+        print(f"DEBUG: Enviando prompt para Ollama ({model_used})...")
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_URL}/api/generate",
@@ -94,9 +95,11 @@ async def chat(
                     "model": model_used,
                     "prompt": prompt,
                     "stream": False,
+                    "keep_alive": "5m",
                     "options": {"temperature": 0.3},
                 },
             )
+            print(f"DEBUG: Resposta recebida do Ollama ({resp.status_code})")
             if resp.status_code != 200:
                 error_body = resp.text
                 print(f"ERRO OLLAMA ({resp.status_code}): {error_body}")
@@ -104,8 +107,10 @@ async def chat(
             resp.raise_for_status()
             data = resp.json()
             answer = data.get("response", "").strip()
+            print(f"DEBUG: Resposta gerada com sucesso ({len(answer)} caracteres)")
 
-    except (httpx.ConnectError, httpx.TimeoutException):
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        print(f"DEBUG: Timeout ou erro de conexão com Ollama: {str(e)}")
         # Ollama offline ou lento demais → fallback com contexto formatado
         answer = (
             "⚠️ O modelo de linguagem (Ollama) está offline ou demorando muito para responder. "
