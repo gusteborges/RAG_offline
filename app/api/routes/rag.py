@@ -29,6 +29,7 @@ async def semantic_search(
     results = await rag_service.search(
         query_text=query_in.query,
         user_id=current_user.id,
+        conversation_id=query_in.conversation_id,
         limit=query_in.limit,
     )
 
@@ -53,6 +54,7 @@ async def chat(
         results = await rag_service.search(
             query_text=query_in.message,
             user_id=current_user.id,
+            conversation_id=query_in.conversation_id,
             limit=query_in.limit,
         )
     except Exception as e:

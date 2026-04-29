@@ -4,6 +4,7 @@ from uuid import UUID
 
 class SearchQuery(BaseModel):
     query: str
+    conversation_id: Optional[UUID] = None
     limit: Optional[int] = 5
 
 class SearchResult(BaseModel):
@@ -17,6 +18,7 @@ class SearchResponse(BaseModel):
 
 class ChatQuery(BaseModel):
     message: str
+    conversation_id: Optional[UUID] = None
     limit: Optional[int] = 5
 
 class ChatResponse(BaseModel):

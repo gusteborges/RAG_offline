@@ -7,8 +7,8 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import './PDFViewer.css';
 
-// Use a reliable worker source
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.js`;
+// Use the local worker file from public directory
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 // HACK: Desabilitar a checagem de versão para evitar o erro "does not match"
 if (typeof window !== 'undefined' && 'pdfjsLib' in window) {

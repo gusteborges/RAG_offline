@@ -11,10 +11,12 @@ class Document(Base, IDMixin, TimestampMixin):
     content: Mapped[str] = mapped_column(Text, nullable=True) # Texto extraído para busca inteligente
     file_path: Mapped[str] = mapped_column(String(511), nullable=False) # Caminho no storage/disco
     
-    # Chave estrangeira
+    # Chaves estrangeiras
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    conversation_id: Mapped[UUID | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True)
 
     # Relacionamentos
     owner: Mapped["User"] = relationship("User", back_populates="documents")
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="documents")
     chunks: Mapped[list["DocumentChunk"]] = relationship("DocumentChunk", backref="document", cascade="all, delete-orphan")
     audio_books: Mapped[list["AudioBook"]] = relationship("AudioBook", backref="document", cascade="all, delete-orphan")

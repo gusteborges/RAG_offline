@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from app.models.chunk import DocumentChunk
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from uuid import UUID
 
 class ChunkRepository:
@@ -16,18 +16,14 @@ class ChunkRepository:
             await self.db.flush()
         return chunks
 
-    async def search_similar_chunks(self, query_embedding: List[float], user_id: UUID, limit: int = 5):
+    async def search_similar_chunks(self, query_embedding: List[float], user_id: UUID, conversation_id: Optional[UUID] = None, limit: int = 5):
         """
-        Busca os chunks mais similares filtrando pelo usuário dono do documento.
-        Usamos a distância de cosseno (vector <=> vector).
+        Busca os chunks mais similares filtrando pelo usuário dono do documento e, opcionalmente, pela conversa.
         """
         # Precisamos fazer um join com a tabela de documentos para garantir 
         # que o usuário só veja os seus próprios documentos.
         from app.models.document import Document
         
-        # SQL adaptado para o pgvector
-        # O operador <=> calcula a distância de cosseno. 
-        # Quanto menor a distância, mais similar é o conteúdo.
         query = (
             select(
                 DocumentChunk,
@@ -35,9 +31,12 @@ class ChunkRepository:
             )
             .join(Document)
             .where(Document.user_id == user_id)
-            .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
-            .limit(limit)
         )
+
+        if conversation_id:
+            query = query.where(Document.conversation_id == conversation_id)
+            
+        query = query.order_by(DocumentChunk.embedding.cosine_distance(query_embedding)).limit(limit)
         
         result = await self.db.execute(query)
         return result.all()

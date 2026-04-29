@@ -57,14 +57,18 @@ export const authApi = {
 
 // ── Documents ────────────────────────────────────────────────
 export const documentsApi = {
-  list: () => base.get('documents/').json<Document[]>(),
+  list: (conversationId?: string) => 
+    base.get('documents/', { searchParams: conversationId ? { conversation_id: conversationId } : {} }).json<Document[]>(),
 
   get: (id: string) => base.get(`documents/${id}`).json<DocumentDetail>(),
 
-  upload: (file: File) => {
+  upload: (file: File, conversationId?: string) => {
     const form = new FormData();
     form.append('file', file);
-    return base.post('documents/upload', { body: form }).json<Document>();
+    return base.post('documents/upload', { 
+      body: form,
+      searchParams: conversationId ? { conversation_id: conversationId } : {}
+    }).json<Document>();
   },
 
   delete: (id: string) => base.delete(`documents/${id}`),
@@ -72,11 +76,22 @@ export const documentsApi = {
 
 // ── RAG ──────────────────────────────────────────────────────
 export const ragApi = {
-  search: (query: string, limit = 5) =>
-    base.post('rag/search', { json: { query, limit } }).json<RagSearchResponse>(),
+  search: (query: string, conversationId?: string, limit = 5) =>
+    base.post('rag/search', { json: { query, conversation_id: conversationId, limit } }).json<RagSearchResponse>(),
 
-  chat: (message: string, limit = 5) =>
-    base.post('rag/chat', { json: { message, limit } }).json<ChatResponse>(),
+  chat: (message: string, conversationId?: string, limit = 5) =>
+    base.post('rag/chat', { json: { message, conversation_id: conversationId, limit } }).json<ChatResponse>(),
+};
+
+// ── Conversations ────────────────────────────────────────────
+export const conversationsApi = {
+  list: () => base.get('conversations/').json<Conversation[]>(),
+  get: (id: string) => base.get(`conversations/${id}`).json<Conversation>(),
+  create: (title: string) => base.post('conversations/', { json: { title } }).json<Conversation>(),
+  update: (id: string, title: string) => base.patch(`conversations/${id}`, { json: { title } }).json<Conversation>(),
+  delete: (id: string) => base.delete(`conversations/${id}`),
+  addMessage: (id: string, role: string, content: string) => 
+    base.post(`conversations/${id}/messages`, { json: { role, content } }).json<any>(),
 };
 
 // ── Audio ────────────────────────────────────────────────────

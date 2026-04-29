@@ -4,13 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.config import settings
 from app.db.session import get_db, init_db
-from app.api.routes import auth, documents, rag, audio
+from app.api.routes import auth, documents, rag, audio, conversations
 
 # IMPORTANTE: Importar todos os modelos aqui para o SQLAlchemy registrá-los
-from app.models.user import User
-from app.models.document import Document
-from app.models.chunk import DocumentChunk
-from app.models.audio_book import AudioBook
+from app.models import Base
 
 app = FastAPI(title="SmartDocs API", version="0.1.0")
 
@@ -32,6 +29,7 @@ app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(rag.router)
 app.include_router(audio.router)
+app.include_router(conversations.router)
 
 @app.get("/test-db")
 async def test_db(db: AsyncSession = Depends(get_db)):

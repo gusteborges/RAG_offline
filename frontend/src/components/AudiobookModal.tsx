@@ -1,7 +1,7 @@
 // ============================================================
 // AUDIOBOOK MODAL — pick a PDF and generate audio
 // ============================================================
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { audioApi, extractErrorMessage } from '../api';
 import { useDocumentStore, useToastStore } from '../store';
 import AudioPlayer from './AudioPlayer';
@@ -11,11 +11,15 @@ import './AudiobookModal.css';
 interface Props { onClose: () => void; }
 
 export default function AudiobookModal({ onClose }: Props) {
-  const { documents } = useDocumentStore();
+  const { documents, loadAllDocuments } = useDocumentStore();
   const { addToast } = useToastStore();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [audioTitle, setAudioTitle] = useState('');
+
+  useEffect(() => {
+    loadAllDocuments();
+  }, []);
 
   const handleGenerate = async (doc: Document) => {
     setGeneratingId(doc.id);

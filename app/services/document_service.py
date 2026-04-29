@@ -1,6 +1,7 @@
 import os
 import shutil
 from uuid import UUID, uuid4
+from typing import List, Optional
 from fastapi import UploadFile
 from pypdf import PdfReader
 from app.models.document import Document
@@ -18,7 +19,7 @@ class DocumentService:
         self.embedding_service = EmbeddingService()
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
-    async def upload_document(self, file: UploadFile, user_id: UUID) -> Document:
+    async def upload_document(self, file: UploadFile, user_id: UUID, conversation_id: Optional[UUID] = None) -> Document:
         file_ext = os.path.splitext(file.filename)[1].lower()
         unique_filename = f"{uuid4()}{file_ext}"
         file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
@@ -46,7 +47,8 @@ class DocumentService:
                 title=file.filename,
                 content=content,
                 file_path=file_path,
-                user_id=user_id
+                user_id=user_id,
+                conversation_id=conversation_id
             )
             saved_doc = await self.repository.add(new_doc)
 
@@ -73,8 +75,8 @@ class DocumentService:
                 os.remove(file_path)
             raise e
 
-    async def get_user_documents(self, user_id: UUID):
-        return await self.repository.get_by_user(user_id)
+    async def get_user_documents(self, user_id: UUID, conversation_id: Optional[UUID] = None):
+        return await self.repository.get_by_user(user_id, conversation_id=conversation_id)
 
     async def get_document(self, doc_id: UUID):
         return await self.repository.get_by_id(doc_id)

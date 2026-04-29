@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from app.models.chunk import DocumentChunk
 from app.repositories.chunk_repository import ChunkRepository
@@ -39,7 +39,7 @@ class RAGService:
         
         return len(chunks_to_create)
 
-    async def search(self, query_text: str, user_id: UUID, limit: int = 5):
+    async def search(self, query_text: str, user_id: UUID, conversation_id: Optional[UUID] = None, limit: int = 5):
         """
         Busca semântica: pergunta -> vetor -> busca similaridade.
         """
@@ -48,6 +48,7 @@ class RAGService:
         similar_chunks = await self.chunk_repository.search_similar_chunks(
             query_embedding=query_embedding,
             user_id=user_id,
+            conversation_id=conversation_id,
             limit=limit
         )
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile, File, status, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -16,23 +16,25 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
+    conversation_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     doc_repo = DocumentRepository(db)
     doc_service = DocumentService(doc_repo, db_session=db)
     
-    return await doc_service.upload_document(file, current_user.id)
+    return await doc_service.upload_document(file, current_user.id, conversation_id=conversation_id)
 
 @router.get("/", response_model=List[DocumentResponse])
 async def list_documents(
+    conversation_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     doc_repo = DocumentRepository(db)
     doc_service = DocumentService(doc_repo)
     
-    return await doc_service.get_user_documents(current_user.id)
+    return await doc_service.get_user_documents(current_user.id, conversation_id=conversation_id)
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 async def get_document(
