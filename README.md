@@ -62,7 +62,7 @@ SmartDocs é um sistema de **RAG (Retrieval-Augmented Generation)** offline e pr
     ```
 
 5.  **Acesse**:
-    - Frontend: `http://localhost`
+    - Frontend: `http://localhost/login`
     - API Docs: `http://localhost:8080/docs`
 
 ---
